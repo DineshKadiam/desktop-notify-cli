@@ -8,4 +8,4 @@ project('fyi', 'c',
           'b_ndebug=if-release'])
 
 dbus = dependency('dbus-1')
-executable('fyi', 'main.c', dependencies: [dbus])
+executable('fyi', 'main.c', dependencies: [dbus], install: true)
