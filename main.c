@@ -50,7 +50,7 @@ usage(const char *progname)
         "       %s --server-capabilities\n\n"
         ""
         "Options:\n"
-        "  -a,--app-id=NAME            app-name, typically used for the icon, unless\n"
+        "  -a,--app-name=NAME          app-name, typically used for the icon, unless\n"
         "                              --icon is used\n"
         "  -i,--icon=ICON              notification icon. Can be either a symbolic name,\n"
         "                              or a file (default: none)\n"
