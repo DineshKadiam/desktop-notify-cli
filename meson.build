@@ -1,4 +1,4 @@
-project('hedwig', 'c',
+project('fyi', 'c',
         version: '1.0.0',
         license: 'MIT',
         default_options: [
@@ -8,4 +8,4 @@ project('hedwig', 'c',
           'b_ndebug=if-release'])
 
 dbus = dependency('dbus-1')
-executable('hedwig', 'main.c', dependencies: [dbus])
+executable('fyi', 'main.c', dependencies: [dbus])
