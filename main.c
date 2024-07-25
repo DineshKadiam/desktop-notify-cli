@@ -542,20 +542,33 @@ main(int argc, char *const *argv)
     /* Expire timeout */
     dbus_message_iter_append_basic(&args, 'i', &expire_time);
 
+    /* Sign up for signals *before* we send the notification, to avoid race */
+    if (wait) {
+        dbus_bus_add_match(conn, "type='signal',interface='" IFACE "'", &err);
+        if (dbus_error_is_set(&err)) {
+            fprintf(stderr, "error: failed to register for notification signals: %s", err.message);
+            goto out;
+        }
+    }
+
     /* Send notification, and wait for reply */
     reply = dbus_connection_send_with_reply_and_block(
-        conn, msg, DBUS_TIMEOUT_USE_DEFAULT, NULL);
+        conn, msg, DBUS_TIMEOUT_USE_DEFAULT, &err);
+
+    if (dbus_error_is_set(&err)) {
+        fprintf(stderr, "error: failed to send notification: %s\n", err.message);
+        goto out;
+    }
 
     dbus_message_unref(msg);
     msg = NULL;
 
     uint32_t notification_id;
-    if (reply == NULL ||
-        !dbus_message_get_args(reply, &err,
+    if (!dbus_message_get_args(reply, &err,
                                DBUS_TYPE_UINT32, &notification_id,
                                DBUS_TYPE_INVALID))
     {
-        fprintf(stderr, "error: failed to read reply: %s\n", err.message);
+        fprintf(stderr, "error: failed to parse reply: %s\n", err.message);
         goto out;
     }
 
@@ -565,19 +578,23 @@ main(int argc, char *const *argv)
     if (print_id)
         printf("id=%u\n", notification_id);
 
-    if (wait) {
-        dbus_bus_add_match(conn, "type='signal',interface='" IFACE "'", &err);
-        dbus_connection_flush(conn);
-        if (dbus_error_is_set(&err)) {
-            fprintf(stderr, "error: failed to register for notification signals: %s", err.message);
-            goto out;
-        }
+    if (!wait) {
+        ret = EXIT_SUCCESS;
+    } else {
+        bool connected = true;
 
         while (true) {
             DBusMessage *signal = dbus_connection_pop_message(conn);
 
             if (signal == NULL) {
-                dbus_connection_read_write(conn, DBUS_TIMEOUT_INFINITE);
+                if (!connected)
+                    break;
+
+                if (!dbus_connection_read_write(conn, DBUS_TIMEOUT_INFINITE)) {
+                    fprintf(stderr, "error: disconnected\n");
+                    connected = false;
+                    /* Continue popping messages until local queue is empty */
+                }
                 continue;
             }
 
