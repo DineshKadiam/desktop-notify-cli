@@ -349,13 +349,13 @@ main(int argc, char *const *argv)
         {"server-capabilities", no_argument,       NULL, OPT_SERVER_CAPABILITIES},
         {"version",             no_argument,       NULL, 'v'},
         {"help",                no_argument,       NULL, 'h'},
-        
+
         {NULL,                  no_argument,       NULL, 0},
     };
 
     const char *progname = argv[0];
     const char *app_id = program_invocation_name;
-    const char *icon = "";
+    const char *icon = NULL;
     const char *category = NULL;
 
     uint32_t replaces_id = 0;
@@ -588,7 +588,7 @@ main(int argc, char *const *argv)
 
     /* If 'icon' exists on disk, treat it as a filename, otherwise as
        a symbolic icon name */
-    {
+    if (icon != NULL) {
         char *path = realpath(icon, NULL);
         if (path != NULL) {
             icon_uri = malloc(strlen("file://") + strlen(path) + 1);
@@ -623,11 +623,12 @@ main(int argc, char *const *argv)
         IFACE, "/org/freedesktop/Notifications",
         IFACE, "Notify");
 
+    const char *icon_arg = icon != NULL ? icon : "";
     DBusMessageIter args;
     dbus_message_iter_init_append(msg, &args);
     dbus_message_iter_append_basic(&args, 's', &app_id);
     dbus_message_iter_append_basic(&args, 'u', &replaces_id);
-    dbus_message_iter_append_basic(&args, 's', &icon);
+    dbus_message_iter_append_basic(&args, 's', &icon_arg);
     dbus_message_iter_append_basic(&args, 's', &title);
     dbus_message_iter_append_basic(&args, 's', &body);
 
@@ -661,20 +662,22 @@ main(int argc, char *const *argv)
         }
         dbus_message_iter_close_container(&args_hints, &args_hints_hint);
 
-        dbus_message_iter_open_container(&args_hints, 'e', 0, &args_hints_hint);
-        {
-            static const char *hint_name = "image-path";
-            dbus_message_iter_append_basic(&args_hints_hint, 's', &hint_name);
-            dbus_message_iter_open_container(&args_hints_hint, 'v', "s", &args_hints_value);
+        if (icon != NULL) {
+            dbus_message_iter_open_container(&args_hints, 'e', 0, &args_hints_hint);
             {
-                if (icon_uri != NULL)
-                    dbus_message_iter_append_basic(&args_hints_value, 's', &icon_uri);
-                else
+                static const char *hint_name = "image-path";
+                dbus_message_iter_append_basic(&args_hints_hint, 's', &hint_name);
+                dbus_message_iter_open_container(&args_hints_hint, 'v', "s", &args_hints_value);
+                {
+                    if (icon_uri != NULL)
+                        dbus_message_iter_append_basic(&args_hints_value, 's', &icon_uri);
+                    else
                     dbus_message_iter_append_basic(&args_hints_value, 's', &icon);
+                }
+                dbus_message_iter_close_container(&args_hints_hint, &args_hints_value);
             }
-            dbus_message_iter_close_container(&args_hints_hint, &args_hints_value);
+            dbus_message_iter_close_container(&args_hints, &args_hints_hint);
         }
-        dbus_message_iter_close_container(&args_hints, &args_hints_hint);
 
         if (category != NULL) {
             dbus_message_iter_open_container(&args_hints, 'e', 0, &args_hints_hint);
