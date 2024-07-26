@@ -12,7 +12,7 @@ if scdoc.found()
   install_data(
     'LICENSE',
     #'README.md',
-    #'CHANGELOG.md',
+    'CHANGELOG.md',
     install_dir: join_paths(get_option('datadir'), 'doc', 'fyi'))
   subdir('doc')
 endif
