@@ -2,15 +2,17 @@
 #include <assert.h>
 #include <errno.h>
 #include <getopt.h>
+#include <poll.h>
+#include <signal.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#include <sys/stat.h>
-
 #include <dbus-1.0/dbus/dbus.h>
+
+#include "version.h"
 
 #define IFACE "org.freedesktop.Notifications"
 
@@ -39,6 +41,15 @@ struct hint {
         const char *string;
     } u;
 };
+
+static volatile sig_atomic_t got_sigint = 0;
+
+static void
+sigint_handler(int signo)
+{
+    assert(signo == SIGINT);
+    got_sigint = 1;
+}
 
 static void
 usage(const char *progname)
@@ -70,11 +81,241 @@ usage(const char *progname)
         "                              capability, if any.\n"
         "  -C,--close=ID               close an existing notification\n"
         "  -p,--print-id               print the notification ID on stdout\n"
+        "  -R,--print-reason           print the reason the notification was closed\n"
+        "  -T,--print-token            print the activation token, if present\n"
         "  -w,--wait                   wait for the notification to be closed before\n"
         "                              exiting\n"
         "     --server-info            display server name and version\n"
         "     --server-capabilities    display server capabilities\n"
+        "  -v,--version                show the version number and quit\n"
         , progname, progname, progname, progname);
+}
+
+static const char *
+version_and_features(void)
+{
+    static char buf[256];
+    snprintf(buf, sizeof(buf), "version: %s", FYI_VERSION);
+    return buf;
+}
+
+static bool
+send_close_notification(DBusConnection *conn, uint32_t notification_id)
+{
+    DBusMessage *msg = dbus_message_new_method_call(
+        IFACE, "/org/freedesktop/Notifications",
+        IFACE, "CloseNotification");
+
+    /* Mimic notify-send: close the notification */
+    DBusMessageIter args;
+    dbus_message_iter_init_append(msg, &args);
+    dbus_message_iter_append_basic(&args, 'u', &notification_id);
+    dbus_connection_send(conn, msg, 0);
+    dbus_connection_flush(conn);
+    dbus_message_unref(msg);
+    return true;
+}
+
+static bool
+send_server_information(DBusConnection *conn)
+{
+    DBusError err = DBUS_ERROR_INIT;
+    bool ret = false;
+
+    DBusMessage *msg = dbus_message_new_method_call(
+        IFACE, "/org/freedesktop/Notifications",
+        IFACE, "GetServerInformation");
+
+    DBusMessage *reply = dbus_connection_send_with_reply_and_block(
+        conn, msg, DBUS_TIMEOUT_USE_DEFAULT, &err);
+
+    if (dbus_error_is_set(&err)) {
+        fprintf(
+            stderr,
+            "error: failed to get server information: %s\n", err.message);
+        goto out;
+    }
+
+    const char *name;
+    const char *vendor;
+    const char *version;
+    const char *spec_version;
+
+    if (!dbus_message_get_args(reply, &err,
+                               DBUS_TYPE_STRING, &name,
+                               DBUS_TYPE_STRING, &vendor,
+                               DBUS_TYPE_STRING, &version,
+                               DBUS_TYPE_STRING, &spec_version,
+                               DBUS_TYPE_INVALID))
+    {
+        fprintf(stderr, "error: failed to parse reply: %s\n", err.message);
+        goto out;
+    }
+
+    printf("name: %s\n", name);
+    printf("vendor: %s\n", vendor);
+    printf("version: %s\n", version);
+    printf("spec-version: %s\n", spec_version);
+
+    ret = true;
+
+out:
+    dbus_message_unref(msg);
+    dbus_message_unref(reply);
+    dbus_error_free(&err);
+    return ret;
+}
+
+static bool
+send_server_capabilities(DBusConnection *conn)
+{
+    DBusError err = DBUS_ERROR_INIT;
+    bool ret = false;
+
+    DBusMessage *msg = dbus_message_new_method_call(
+        IFACE, "/org/freedesktop/Notifications",
+        IFACE, "GetCapabilities");
+
+    DBusMessage *reply = dbus_connection_send_with_reply_and_block(
+        conn, msg, DBUS_TIMEOUT_USE_DEFAULT, &err);
+
+    if (dbus_error_is_set(&err)) {
+        fprintf(
+            stderr,
+            "error: failed to get server capabilities: %s\n", err.message);
+
+        goto out;
+    }
+
+    DBusMessageIter vals;
+    dbus_message_iter_init(reply, &vals);
+    if (dbus_message_iter_get_arg_type(&vals) != DBUS_TYPE_ARRAY) {
+        fprintf(stderr, "error: expected an array of strings\n");
+        goto out;
+    }
+
+    DBusMessageIter caps;
+    dbus_message_iter_recurse(&vals, &caps);
+
+    while (dbus_message_iter_get_arg_type(&caps) != DBUS_TYPE_INVALID) {
+        if (dbus_message_iter_get_arg_type(&caps) != DBUS_TYPE_STRING) {
+            fprintf(stderr, "error: non-string capability\n");
+            goto out;
+        }
+
+        const char *cap;
+        dbus_message_iter_get_basic(&caps, &cap);
+        printf("%s\n", cap);
+
+        dbus_message_iter_next(&caps);
+    }
+
+    dbus_message_iter_next(&vals);
+    assert(dbus_message_iter_get_arg_type(&vals) == DBUS_TYPE_INVALID);
+
+    ret = true;
+
+out:
+    dbus_message_unref(reply);
+    dbus_message_unref(msg);
+    dbus_error_free(&err);
+
+    return ret;
+}
+
+static bool
+notification_closed_handler(DBusMessage *signal, uint32_t *id, uint32_t *reason)
+{
+    DBusError err = DBUS_ERROR_INIT;
+    bool ret = false;
+
+    if (!dbus_message_get_args(signal, &err,
+                               DBUS_TYPE_UINT32, id,
+                               DBUS_TYPE_UINT32, reason,
+                               DBUS_TYPE_INVALID))
+    {
+        fprintf(
+            stderr,
+            "error: NotificationClosed: failed to parse signal arguments: %s\n",
+            err.message);
+
+        goto out;
+    }
+
+    ret = true;
+
+out:
+    dbus_error_free(&err);
+    dbus_message_unref(signal);
+    return ret;
+}
+
+static bool
+action_invoked_handler(DBusMessage *signal, uint32_t *id, char **action_name)
+{
+    DBusError err = DBUS_ERROR_INIT;
+    bool ret = false;
+
+    if (action_name != NULL)
+        *action_name = NULL;
+
+    const char *action;
+    if (!dbus_message_get_args(signal, &err,
+                               DBUS_TYPE_UINT32, id,
+                               DBUS_TYPE_STRING, &action,
+                               DBUS_TYPE_INVALID))
+    {
+        fprintf(
+            stderr,
+            "error: ActionInvoked: failed to parse signal arguments: %s\n",
+            err.message);
+
+        goto out;
+    }
+
+    if (action_name != NULL)
+        *action_name = strdup(action);
+
+    ret = true;
+
+out:
+    dbus_error_free(&err);
+    dbus_message_unref(signal);
+    return ret;
+}
+
+static bool
+activation_token_handler(DBusMessage *signal, uint32_t *id, char **token)
+{
+    DBusError err = DBUS_ERROR_INIT;
+    bool ret = false;
+
+    if (token != NULL)
+        *token = NULL;
+
+    const char *tok;
+    if (!dbus_message_get_args(signal, &err,
+                               DBUS_TYPE_UINT32, id,
+                               DBUS_TYPE_STRING, &tok,
+                               DBUS_TYPE_INVALID))
+    {
+        fprintf(
+            stderr,
+            "error: ActivationToken: failed to parse signal arguments: %s\n",
+            err.message);
+
+        goto out;
+    }
+
+    if (token != NULL)
+        *token = strdup(tok);
+
+    ret = true;
+
+out:
+    dbus_error_free(&err);
+    dbus_message_unref(signal);
+    return ret;
 }
 
 int
@@ -101,9 +342,13 @@ main(int argc, char *const *argv)
         {"close",               required_argument, NULL, 'C'},
         {"transient",           no_argument,       NULL, OPT_TRANSIENT},
         {"print-id",            no_argument,       NULL, 'p'},
+        {"print-reason",        no_argument,       NULL, 'R'},
+        {"print-token",         no_argument,       NULL, 'T'},
         {"wait",                no_argument,       NULL, 'w'},
         {"server-info",         no_argument,       NULL, OPT_SERVER_INFO},
         {"server-capabilities", no_argument,       NULL, OPT_SERVER_CAPABILITIES},
+        {"version",             no_argument,       NULL, 'v'},
+        {"help",                no_argument,       NULL, 'h'},
         
         {NULL,                  no_argument,       NULL, 0},
     };
@@ -125,6 +370,8 @@ main(int argc, char *const *argv)
     size_t hint_count = 0;
 
     bool print_id = false;
+    bool print_reason = false;
+    bool print_token = false;
     bool wait = false;
     bool transient = false;
     bool server_info = false;
@@ -139,7 +386,7 @@ main(int argc, char *const *argv)
     DBusConnection *conn = NULL;
 
     while (true) {
-        int c = getopt_long(argc, argv, "+a:i:u:c:A:H:r:t:C:pwh", longopts, NULL);
+        int c = getopt_long(argc, argv, "+a:i:u:c:A:H:r:t:C:pRTwhv", longopts, NULL);
 
         if (c < 0)
             break;
@@ -149,6 +396,8 @@ main(int argc, char *const *argv)
         case 'i': icon = optarg; break;
         case 'c': category = optarg; break;
         case 'p': print_id = true; break;
+        case 'R': print_reason = true; break;
+        case 'T': print_token = true; break;
         case 'w': wait = true; break;
         case OPT_TRANSIENT: transient = true; break;
 
@@ -297,6 +546,7 @@ main(int argc, char *const *argv)
             server_capabilities = true;
             break;
 
+        case 'v': printf("fyi %s\n", version_and_features()); ret = EXIT_SUCCESS; goto out;
         case 'h': usage(progname); ret = EXIT_SUCCESS; goto out;
         case '?': ret = EXIT_FAILURE; goto out;
         }
@@ -331,16 +581,21 @@ main(int argc, char *const *argv)
     if (body == NULL)
         body = strdup("");
 
-    if (action_count > 0) {
+    if (action_count > 0 || print_reason || print_token) {
         /* Actions implies wait */
         wait = true;
     }
 
-    struct stat st;
-    if (stat(icon, &st) == 0) {
-        icon_uri = malloc(strlen("file://") + strlen(icon) + 1);
-        strcpy(icon_uri, "file://");
-        strcat(icon_uri, icon);
+    /* If 'icon' exists on disk, treat it as a filename, otherwise as
+       a symbolic icon name */
+    {
+        char *path = realpath(icon, NULL);
+        if (path != NULL) {
+            icon_uri = malloc(strlen("file://") + strlen(path) + 1);
+            strcpy(icon_uri, "file://");
+            strcat(icon_uri, path);
+            free(path);
+        }
     }
 
     conn = dbus_bus_get(DBUS_BUS_SESSION, &err);
@@ -350,90 +605,17 @@ main(int argc, char *const *argv)
     }
 
     if (server_info) {
-        msg = dbus_message_new_method_call(
-            IFACE, "/org/freedesktop/Notifications",
-            IFACE, "GetServerInformation");
-
-        reply = dbus_connection_send_with_reply_and_block(conn, msg, DBUS_TIMEOUT_USE_DEFAULT, &err);
-        if (dbus_error_is_set(&err)) {
-            fprintf(stderr, "error: failed to get server information: %s\n", err.message);
-        }
-
-        const char *name;
-        const char *vendor;
-        const char *version;
-        const char *spec_version;
-
-        if (!dbus_message_get_args(reply, &err,
-                                   DBUS_TYPE_STRING, &name,
-                                   DBUS_TYPE_STRING, &vendor,
-                                   DBUS_TYPE_STRING, &version,
-                                   DBUS_TYPE_STRING, &spec_version,
-                                   DBUS_TYPE_INVALID))
-        {
-            fprintf(stderr, "error: failed to parse reply: %s\n", err.message);
-        } else {
-            printf("name: %s\n", name);
-            printf("vendor: %s\n", vendor);
-            printf("version: %s\n", version);
-            printf("spec-version: %s\n", spec_version);
-        }
-
+        ret = send_server_information(conn) ? EXIT_SUCCESS : EXIT_FAILURE;
         goto out;
     }
 
     if (server_capabilities) {
-        msg = dbus_message_new_method_call(
-            IFACE, "/org/freedesktop/Notifications",
-            IFACE, "GetCapabilities");
-
-        reply = dbus_connection_send_with_reply_and_block(conn, msg, DBUS_TIMEOUT_USE_DEFAULT, &err);
-        if (dbus_error_is_set(&err)) {
-            fprintf(stderr, "error: failed to get server capabilities: %s\n", err.message);
-        }
-
-        DBusMessageIter vals;
-        dbus_message_iter_init(reply, &vals);
-        if (dbus_message_iter_get_arg_type(&vals) != DBUS_TYPE_ARRAY) {
-            fprintf(stderr, "error: expected an array of strings\n");
-            goto out;
-        }
-
-        DBusMessageIter caps;
-        dbus_message_iter_recurse(&vals, &caps);
-
-        while (dbus_message_iter_get_arg_type(&caps) != DBUS_TYPE_INVALID) {
-            if (dbus_message_iter_get_arg_type(&caps) != DBUS_TYPE_STRING) {
-                fprintf(stderr, "error: non-string capability\n");
-                goto out;
-            }
-
-            const char *cap;
-            dbus_message_iter_get_basic(&caps, &cap);
-            printf("%s\n", cap);
-
-            dbus_message_iter_next(&caps);
-        }
-        
-        dbus_message_iter_next(&vals);
-        assert(dbus_message_iter_get_arg_type(&vals) == DBUS_TYPE_INVALID);
-
+        ret = send_server_capabilities(conn) ? EXIT_SUCCESS : EXIT_FAILURE;
         goto out;
     }
 
     if (close_id > 0) {
-        msg = dbus_message_new_method_call(
-            IFACE, "/org/freedesktop/Notifications",
-            IFACE, "CloseNotification");
-
-        DBusMessageIter arg;
-        dbus_message_iter_init_append(msg, &arg);
-        dbus_message_iter_append_basic(&arg, 'u', &close_id);
-
-        reply = dbus_connection_send_with_reply_and_block(conn, msg, DBUS_TIMEOUT_USE_DEFAULT, &err);
-        if (dbus_error_is_set(&err)) {
-            fprintf(stderr, "error: failed to close notification: %s\n", err.message);
-        }
+        ret = send_close_notification(conn, close_id) ? EXIT_SUCCESS : EXIT_FAILURE;
         goto out;
     }
 
@@ -583,34 +765,90 @@ main(int argc, char *const *argv)
     } else {
         bool connected = true;
 
+        struct sigaction act = {.sa_handler = &sigint_handler};
+        sigemptyset(&act.sa_mask);
+
+        sigaction(SIGINT, &act, NULL);
+
+        int dbus_fd = -1;
+        if (!dbus_connection_get_unix_fd(conn, &dbus_fd)) {
+            fprintf(stderr, "error: failed to get dbus socket\n");
+            goto out;
+        }
+
         while (true) {
             DBusMessage *signal = dbus_connection_pop_message(conn);
 
             if (signal == NULL) {
+                /*
+                 * No more queued up messages. Need to first wait for
+                 * the connection to become readable, then pull in
+                 * more messages into the queue.
+                 */
+
                 if (!connected)
                     break;
 
-                if (!dbus_connection_read_write(conn, DBUS_TIMEOUT_INFINITE)) {
+                /* Wait for D-Bus connection to become readable again */
+                while (true) {
+                    struct pollfd fds[] = {{.fd = dbus_fd, .events = POLLIN}};
+                    int poll_ret = poll(fds, 1, -1);
+
+                    if (poll_ret < 0) {
+                        if (errno == EINTR) {
+                            if (got_sigint) {
+                                send_close_notification(conn, notification_id);
+
+                                /* Continue processing messages.
+                                 *
+                                 * We'll exit when we get the
+                                 * NotificationClosed signal.
+                                 */
+                            }
+
+                            /* Poll again */
+                            continue;
+                        } else {
+                            fprintf(stderr, "error: failed to poll: %s\n",
+                                    strerror(errno));
+                            goto out;
+                        }
+                    }
+
+                    if (fds[0].revents & POLLHUP) {
+                        fprintf(stderr, "error: disconnected\n");
+                        connected = false;
+                    }
+
+                    /* Messages to read - exit the poll loop */
+                    break;
+                }
+
+                if (connected && !dbus_connection_read_write(conn, 0)) {
                     fprintf(stderr, "error: disconnected\n");
                     connected = false;
                     /* Continue popping messages until local queue is empty */
                 }
+
                 continue;
             }
 
             if (dbus_message_is_signal(signal, IFACE, "NotificationClosed")) {
                 uint32_t id;
-                if (!dbus_message_get_args(signal, &err,
-                                           DBUS_TYPE_UINT32, &id,
-                                           DBUS_TYPE_INVALID))
-                {
-                    fprintf(stderr, "error: NotificationClosed: failed to parse signal arguments: %s\n", err.message);
-                    dbus_message_unref(signal);
+                uint32_t reason;
+
+                if (!notification_closed_handler(signal, &id, &reason))
                     break;
-                }
 
                 if (id == notification_id) {
-                    dbus_message_unref(signal);
+                    if (print_reason) {
+                        switch (reason) {
+                        case 1: printf("reason: expired\n"); break;
+                        case 2: printf("reason: dismissed\n"); break;
+                        case 3: printf("reason: force-closed\n"); break;
+                        default: printf("reason: unknown\n"); break;
+                        }
+                    }
                     ret = EXIT_SUCCESS;
                     break;
                 }
@@ -618,53 +856,32 @@ main(int argc, char *const *argv)
 
             else if (dbus_message_is_signal(signal, IFACE, "ActionInvoked")) {
                 uint32_t id;
-                const char *action;
-                if (!dbus_message_get_args(signal, &err,
-                                           DBUS_TYPE_UINT32, &id,
-                                           DBUS_TYPE_STRING, &action,
-                                           DBUS_TYPE_INVALID))
-                {
-                    fprintf(stderr, "error: ActionInvoked: failed to parse signal arguments: %s\n", err.message);
-                    dbus_message_unref(signal);
+                char *action_name = NULL;
+
+                if (!action_invoked_handler(signal, &id, &action_name))
                     break;
-                }
 
                 if (id == notification_id) {
-                    printf("action=%s\n", action);
-
-                    msg = dbus_message_new_method_call(
-                        IFACE, "/org/freedesktop/Notifications",
-                        IFACE, "CloseNotification");
-
-                    /* Mimic notify-send: close the notification */
-                    DBusMessageIter args;
-                    dbus_message_iter_init_append(msg, &args);
-                    dbus_message_iter_append_basic(&args, 'u', &notification_id);
-                    dbus_connection_send(conn, msg, NULL);
-                    dbus_connection_flush(conn);
-                    dbus_message_unref(msg);
-                    msg = NULL;
+                    printf("action=%s\n", action_name);
+                    send_close_notification(conn, notification_id);
                 }
+
+                free(action_name);
             }
 
             else if (dbus_message_is_signal(signal, IFACE, "ActivationToken")) {
                 uint32_t id;
-                const char *token;
-                if (!dbus_message_get_args(signal, &err,
-                                           DBUS_TYPE_UINT32, &id,
-                                           DBUS_TYPE_STRING, &token,
-                                           DBUS_TYPE_INVALID))
-                {
-                    fprintf(stderr, "error: ActivationToken: failed to parse signal arguments: %s\n", err.message);
-                    dbus_message_unref(signal);
+                char *token = NULL;
+
+                if (!activation_token_handler(signal, &id, &token))
                     break;
-                }
 
-                if (id == notification_id)
+                if (id == notification_id && print_token)
                     printf("xdgtoken=%s\n", token);
-            }
 
-            dbus_message_unref(signal);
+                free(token);
+            } else
+                dbus_message_unref(signal);
         }
     }
 
