@@ -27,3 +27,5 @@ version = custom_target(
 
 dbus = dependency('dbus-1')
 executable('fyi', 'main.c', version, dependencies: [dbus], install: true)
+
+subdir('completions')
