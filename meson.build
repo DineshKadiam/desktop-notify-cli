@@ -7,6 +7,16 @@ project('fyi', 'c',
           'werror=true',
           'b_ndebug=if-release'])
 
+scdoc = dependency('scdoc', native: true, required: get_option('docs'))
+if scdoc.found()
+  install_data(
+    'LICENSE',
+    #'README.md',
+    #'CHANGELOG.md',
+    install_dir: join_paths(get_option('datadir'), 'doc', 'fyi'))
+  subdir('doc')
+endif
+
 env = find_program('env', native: true)
 generate_version_sh = files('generate-version.sh')
 version = custom_target(
