@@ -55,6 +55,8 @@ Close the notification sent above:
 ```sh
 fyi --close 7
 ```
+or, press `ctrl+c`; this will send `SIGINT` to `fyi`, which will close
+the notification.
 
 Add two actions (then trigger one of them):
 ```sh
