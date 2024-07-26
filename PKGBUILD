@@ -16,7 +16,7 @@ pkgver() {
 }
 
 build() {
-  meson --prefix=/usr --buildtype=release --wrap-mode=nofallback -Db_lto=true ..
+  meson --prefix=/usr --buildtype=minsize --wrap-mode=nofallback ..
   ninja
 }
 
