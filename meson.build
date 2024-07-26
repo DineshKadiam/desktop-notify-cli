@@ -11,7 +11,7 @@ scdoc = dependency('scdoc', native: true, required: get_option('docs'))
 if scdoc.found()
   install_data(
     'LICENSE',
-    #'README.md',
+    'README.md',
     'CHANGELOG.md',
     install_dir: join_paths(get_option('datadir'), 'doc', 'fyi'))
   subdir('doc')
