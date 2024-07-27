@@ -1,0 +1,21 @@
+
+OPTS="\
+-a --app-name= \
+-i --icon= \
+-u --urgency= \
+-c --category= \
+-A --action= \
+-H --hint= \
+-r --replaces= \
+-t --expire-time= \
+--transient \
+-C --close= \
+-p --print-id \
+-R --print-reason \
+-T --print-token \
+-w --wait \
+--server-info \
+--server-capabilities \
+-v --version"
+
+complete -W "${OPTS}" fyi
