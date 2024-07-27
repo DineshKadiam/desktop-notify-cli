@@ -77,5 +77,5 @@ prints
 id=5
 xdgtoken=24c1d76038357e75ec04f27e30ef46bb
 action=default
-reason: dismissed
+reason=dismissed
 ```

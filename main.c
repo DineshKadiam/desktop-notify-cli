@@ -846,10 +846,10 @@ main(int argc, char *const *argv)
                 if (id == notification_id) {
                     if (print_reason) {
                         switch (reason) {
-                        case 1: printf("reason: expired\n"); break;
-                        case 2: printf("reason: dismissed\n"); break;
-                        case 3: printf("reason: force-closed\n"); break;
-                        default: printf("reason: unknown\n"); break;
+                        case 1: printf("reason=expired\n"); break;
+                        case 2: printf("reason=dismissed\n"); break;
+                        case 3: printf("reason=force-closed\n"); break;
+                        default: printf("reason=unknown\n"); break;
                         }
                     }
                     ret = EXIT_SUCCESS;

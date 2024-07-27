@@ -121,10 +121,10 @@ the format:
 *-R*,*--print-reason*
 	Print the reason the notification was closed, in the format:
 	
-	- *reason: expired*
-	- *reason: dismissed*
-	- *reason: force-closed*
-	- *reason: unknown*
+	- *reason=expired*
+	- *reason=dismissed*
+	- *reason=force-closed*
+	- *reason=unknown*
 	
 	Using this option implies *--wait*.
 
