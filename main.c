@@ -662,23 +662,6 @@ main(int argc, char *const *argv)
         }
         dbus_message_iter_close_container(&args_hints, &args_hints_hint);
 
-        if (icon != NULL) {
-            dbus_message_iter_open_container(&args_hints, 'e', 0, &args_hints_hint);
-            {
-                static const char *hint_name = "image-path";
-                dbus_message_iter_append_basic(&args_hints_hint, 's', &hint_name);
-                dbus_message_iter_open_container(&args_hints_hint, 'v', "s", &args_hints_value);
-                {
-                    if (icon_uri != NULL)
-                        dbus_message_iter_append_basic(&args_hints_value, 's', &icon_uri);
-                    else
-                    dbus_message_iter_append_basic(&args_hints_value, 's', &icon);
-                }
-                dbus_message_iter_close_container(&args_hints_hint, &args_hints_value);
-            }
-            dbus_message_iter_close_container(&args_hints, &args_hints_hint);
-        }
-
         if (category != NULL) {
             dbus_message_iter_open_container(&args_hints, 'e', 0, &args_hints_hint);
             {

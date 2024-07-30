@@ -12,6 +12,11 @@
 
 
 ### Changed
+
+* `image-path` hint is no longer set automatically. This aligns `fyi`
+  with `notify-send`.
+
+
 ### Deprecated
 ### Removed
 ### Fixed
