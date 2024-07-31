@@ -662,7 +662,7 @@ main(int argc, char *const *argv)
         }
         dbus_message_iter_close_container(&args_hints, &args_hints_hint);
 
-        if (category != NULL) {
+        if (category != NULL && category[0] != '\0') {
             dbus_message_iter_open_container(&args_hints, 'e', 0, &args_hints_hint);
             {
                 static const char *hint_name = "category";
