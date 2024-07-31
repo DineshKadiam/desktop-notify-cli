@@ -14,6 +14,8 @@ OPTS="\
 -R --print-reason \
 -T --print-token \
 -w --wait \
+--image-data= \
+--image-size= \
 --server-info \
 --server-capabilities \
 -v --version"

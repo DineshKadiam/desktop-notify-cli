@@ -12,6 +12,8 @@ complete -c fyi    -s p -l print-id                          -d "print the notif
 complete -c fyi    -s T -l print-token                       -d "print the activation token"
 complete -c fyi    -s R -l print-reason                      -d "print the reason the notification was closed"
 complete -c fyi    -s w -l wait                              -d "wait for notification to close"
+complete -c fyi         -l image-data                        -d "raw RGBA image data, sets the 'image-data' hint"
+complete -c fyi         -l image-size                        -d "dimensions of the image loaded by --image-data"
 complete -c fyi         -l server-info                       -d "print server name and version"
 complete -c fyi         -l server-capabilities               -d "print server capabilities"
 complete -c fyi    -s v -l version                           -d "show the version number and quit"
