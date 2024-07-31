@@ -467,6 +467,10 @@ main(int argc, char *const *argv)
                 hint.type = DBUS_TYPE_STRING;
                 hint.type_as_string = DBUS_TYPE_STRING_AS_STRING;
                 hint.u.string = value;
+
+                /* Ignore empty string values */
+                if (value[0] == '\0')
+                    break;
             } else {
                 fprintf(stderr, "error: invalid hint type: %s\n", type_str);
                 goto out;
