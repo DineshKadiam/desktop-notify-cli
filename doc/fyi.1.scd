@@ -158,6 +158,14 @@ the format:
 	- *-R*,*--print-reason*
 	- *-T*,*--print-token*
 
+*--image-data*=_FILE_
+	Sets the *image-data* hint in the notification, with the raw pixel
+	data from _FILE_. The data is assumed to be raw RGBA data. You
+	must also provide the image size, see *--image-size*.
+
+*--image-size=WIDTHxHEIGHT*
+	The dimensions of the image loaded by --image-data.
+
 *--server-info*
 	Display notification daemon name and version.
 
