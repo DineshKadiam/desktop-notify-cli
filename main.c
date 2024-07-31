@@ -1,6 +1,7 @@
 #define _GNU_SOURCE
 #include <assert.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <getopt.h>
 #include <poll.h>
 #include <signal.h>
@@ -9,6 +10,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#include <sys/stat.h>
 
 #include <dbus-1.0/dbus/dbus.h>
 
@@ -65,6 +68,9 @@ usage(const char *progname)
         "                              --icon is used\n"
         "  -i,--icon=ICON              notification icon. Can be either a symbolic name,\n"
         "                              or a file (default: none)\n"
+        "    --image-data=FILE         file content (must be raw RGBA pixel data) is sent\n"
+        "                              as a image-data hint\n"
+        "    --image-size=WIDTHxHEIGHT width and height, in pixels, of --image-data\n"
         "  -u,--urgency=URGENCY        notification urgency; low, normal or critical\n"
         "                              (default: normal)\n"
         "  -c,--category=CATEGORY      notification category (default: none)\n"
@@ -329,10 +335,14 @@ main(int argc, char *const *argv)
 #define OPT_SERVER_INFO         256
 #define OPT_SERVER_CAPABILITIES 257
 #define OPT_TRANSIENT           258
+#define OPT_IMAGE_DATA          259
+#define OPT_IMAGE_SIZE          260
 
     const struct option longopts[] = {
         {"app-name",            required_argument, NULL, 'a'},
         {"icon",                required_argument, NULL, 'i'},
+        {"image-data",          required_argument, NULL, OPT_IMAGE_DATA},
+        {"image-size",          required_argument, NULL, OPT_IMAGE_SIZE},
         {"urgency",             required_argument, NULL, 'u'},
         {"category",            required_argument, NULL, 'c'},
         {"action",              required_argument, NULL, 'A'},
@@ -356,6 +366,7 @@ main(int argc, char *const *argv)
     const char *progname = argv[0];
     const char *app_id = program_invocation_name;
     const char *icon = NULL;
+    const char *image_data_file = NULL;
     const char *category = NULL;
 
     uint32_t replaces_id = 0;
@@ -379,6 +390,16 @@ main(int argc, char *const *argv)
 
     char *body = NULL;
     char *icon_uri = NULL;
+    char *image_data = NULL;
+    size_t image_data_sz = 0;
+    int32_t image_width = 0;
+    int32_t image_height = 0;
+    int32_t image_stride = 0;
+
+    /* We only support RGBA image data */
+    const dbus_bool_t image_has_alpha = true;
+    const int32_t image_bpp = 8;
+    const int32_t image_channels = 4;
 
     DBusError err = DBUS_ERROR_INIT;
     DBusMessage *msg = NULL;
@@ -542,6 +563,33 @@ main(int argc, char *const *argv)
             break;
         }
 
+        case OPT_IMAGE_DATA:
+            image_data_file = optarg;
+            break;
+
+        case OPT_IMAGE_SIZE: {
+            errno = 0;
+            char *end = NULL;
+            const unsigned long w = strtoul(optarg, &end, 10);
+
+            if (errno == 0 && end != NULL && *end == 'x' && *(end + 1) != '\0') {
+                const unsigned long h = strtoul(end + 1, &end, 10);
+
+                if (errno == 0 && end != NULL && *end == '\0') {
+                    image_width = w;
+                    image_height = h;
+                    image_stride = image_width * 4;
+                } else {
+                    fprintf(stderr, "error: %s: invalid image size\n", optarg);
+                    goto out;
+                }
+            } else {
+                fprintf(stderr, "error: %s: invalid image size\n", optarg);
+                goto out;
+            }
+            break;
+        }
+
         case OPT_SERVER_INFO:
             server_info = true;
             break;
@@ -623,6 +671,34 @@ main(int argc, char *const *argv)
         goto out;
     }
 
+    if (image_data_file != NULL) {
+        struct stat st;
+        int fd = open(image_data_file, O_RDONLY);
+
+        if (fd < 0 || fstat(fd, &st) < 0) {
+            fprintf(stderr, "error: %s: failed to open+stat: %s\n",
+                    image_data_file, strerror(errno));
+            if (fd >= 0)
+                close(fd);
+            goto out;
+        }
+
+        //printf("allocating %lu image data bytes\n", st.st_size);
+        image_data = malloc(st.st_size);
+
+        if (image_data == NULL ||
+            read(fd, image_data, st.st_size) != (ssize_t)st.st_size)
+        {
+            fprintf(stderr, "error: %s: failed to read: %s\n",
+                    image_data_file, strerror(errno));
+            close(fd);
+            goto out;
+        }
+
+        image_data_sz = st.st_size;
+        close(fd);
+    }
+
     msg = dbus_message_new_method_call(
         IFACE, "/org/freedesktop/Notifications",
         IFACE, "Notify");
@@ -692,6 +768,40 @@ main(int argc, char *const *argv)
                 dbus_message_iter_close_container(&args_hints_hint, &args_hints_value);
             }
             dbus_message_iter_close_container(&args_hints, &args_hints_hint);
+        }
+
+        if (image_data_sz > 0) {
+            dbus_message_iter_open_container(&args_hints, 'e', 0, &args_hints_hint);
+            {
+                static const char *hint_name = "image-data";
+                dbus_message_iter_append_basic(&args_hints_hint, 's', &hint_name);
+                dbus_message_iter_open_container(&args_hints_hint, 'v', "(iiibiiay)", &args_hints_value);
+                {
+                    DBusMessageIter args_image_data;
+                    dbus_message_iter_open_container(&args_hints_value, 'r', NULL, &args_image_data);
+                    {
+                        dbus_message_iter_append_basic(&args_image_data, 'i', &image_width);
+                        dbus_message_iter_append_basic(&args_image_data, 'i', &image_height);
+                        dbus_message_iter_append_basic(&args_image_data, 'i', &image_stride);
+                        dbus_message_iter_append_basic(&args_image_data, 'b', &image_has_alpha);
+                        dbus_message_iter_append_basic(&args_image_data, 'i', &image_bpp);
+                        dbus_message_iter_append_basic(&args_image_data, 'i', &image_channels);
+
+                        DBusMessageIter args_pixel_array;
+                        dbus_message_iter_open_container(&args_image_data, 'a', "y", &args_pixel_array);
+                        {
+                            for (size_t i = 0; i < image_data_sz; i++) {
+                                dbus_message_iter_append_basic(&args_pixel_array, 'y', &image_data[i]);
+                            }
+                        }
+                        dbus_message_iter_close_container(&args_image_data, &args_pixel_array);
+                    }
+                    dbus_message_iter_close_container(&args_hints_value, &args_image_data);
+                }
+                dbus_message_iter_close_container(&args_hints_hint, &args_hints_value);
+            }
+            dbus_message_iter_close_container(&args_hints, &args_hints_hint);
+
         }
 
         /* User specified hints */
@@ -884,6 +994,7 @@ out:
         dbus_connection_unref(conn);
 
     dbus_error_free(&err);
+    free(image_data);
     free(icon_uri);
     free(body);
     free(hints);

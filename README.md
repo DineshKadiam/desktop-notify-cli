@@ -79,3 +79,27 @@ xdgtoken=24c1d76038357e75ec04f27e30ef46bb
 action=default
 reason=dismissed
 ```
+
+Set a custom image, in addition to the application icon (note: not all
+notification daemons support showing _both_ an icon and an image, and
+will select one of them):
+```sh
+fyi --icon firefox --hint string:image-path /path/to/image.png title message
+```
+
+Set a custom image in-band. Same limitations to icon vs. image as
+above. The image file **must** be raw RGBA pixels. I.e. you **cannot**
+use a plain PNG, or SVG etc. You can use `convert` (from ImageMagick)
+to convert e.g. a PNG. Since the file contains no metadata, you also
+need to tell `fyi` the image's dimensions:
+
+```sh
+# Get image dimensions
+file /path/to/image.png
+
+# Convert to raw RGBA
+convert /path/to/image.png /path/to/raw.rgba
+
+# Notify!
+fyi --image-data /path/to/raw.rgba --image-size WxH title message
+```
