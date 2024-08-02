@@ -1,5 +1,5 @@
 pkgname=fyi
-pkgver=1.0.1
+pkgver=1.0.2
 pkgrel=1
 pkgdesc="Command line utility to create desktop notifications"
 arch=('x86_64' 'aarch64')
