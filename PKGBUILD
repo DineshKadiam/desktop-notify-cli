@@ -16,6 +16,7 @@ pkgver() {
 }
 
 build() {
+  export CFLAGS="${CFLAGS} -fno-exceptions"
   meson --prefix=/usr --buildtype=minsize --wrap-mode=nofallback ..
   ninja
 }
