@@ -12,7 +12,7 @@
 * Support for inline image data via `--image-data` and
   `--image-size`. `--image-data` points to a file containing raw RGBA
   data, and `--image-size` specifies its dimensions (e.g. `128x128`).
-  
+
   The image data is sent to the notification daemon using the
   `image-data` hint.
 
