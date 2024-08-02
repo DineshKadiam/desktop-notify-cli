@@ -1,11 +1,12 @@
 # Changelog
 
-* [Unreleased](#unreleased)
+* [1.0.2](#1-0-2)
 * [1.0.1](#1-0-1)
 * [1.0.0](#1-0-0)
 
 
-## Unreleased
+## 1.0.2
+
 ### Added
 
 * Bash completions
@@ -25,11 +26,9 @@
 * Ignore empty string `--hint` values.
 
 
-### Deprecated
-### Removed
-### Fixed
-### Security
 ### Contributors
+
+*  Leon Henrik Plickat
 
 
 ## 1.0.1
