@@ -17,8 +17,7 @@ It is a almost a `notify-send` clone, with the following differences:
 * `fyi` can query the notification daemon for its name and version
   information.
 * `fyi` can query the notification daemon for its capabilities.
-* `fyi` has shell completions (though only
-  [fish](https://fishshell.com/) for now).
+* `fyi` has shell completions (bash and [fish](https://fishshell.com/)).
 * `fyi` has a single run-time dependency:
   [dbus](https://www.freedesktop.org/wiki/Software/dbus/) (the
   original D-Bus implementation).
