@@ -1,24 +1,22 @@
 # Changelog
 
-* [Unreleased](#unreleased)
+* [1.0.3](#1-0-3)
 * [1.0.2](#1-0-2)
 * [1.0.1](#1-0-1)
 * [1.0.0](#1-0-0)
 
 
-## Unreleased
-### Added
-### Changed
-### Deprecated
-### Removed
+## 1.0.3
+
 ### Fixed
 
 * Missing include, causing compilation errors.
 * Missing fish completions for `--image-data` and `--image-size`
 
 
-### Security
 ### Contributors
+
+* q66
 
 
 ## 1.0.2
