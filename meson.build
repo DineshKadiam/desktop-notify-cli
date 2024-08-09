@@ -7,6 +7,15 @@ project('fyi', 'c',
           'werror=true',
           'b_ndebug=if-release'])
 
+is_debug_build = get_option('buildtype').startswith('debug')
+cc = meson.get_compiler('c')
+
+add_project_arguments(
+  (is_debug_build
+    ? ['-D_DEBUG']
+   : [cc.get_supported_arguments('-fno-asynchronous-unwind-tables')]),
+  language: 'c')
+
 scdoc = dependency('scdoc', native: true, required: get_option('docs'))
 if scdoc.found()
   install_data(
