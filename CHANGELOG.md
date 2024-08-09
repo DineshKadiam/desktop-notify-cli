@@ -12,6 +12,11 @@
 ### Deprecated
 ### Removed
 ### Fixed
+
+* Missing include, causing compilation errors.
+* Missing fish completions for `--image-data` and `--image-size`
+
+
 ### Security
 ### Contributors
 
