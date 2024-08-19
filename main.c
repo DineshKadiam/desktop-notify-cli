@@ -14,7 +14,7 @@
 
 #include <sys/stat.h>
 
-#include <dbus-1.0/dbus/dbus.h>
+#include <dbus/dbus.h>
 
 #include "version.h"
 
