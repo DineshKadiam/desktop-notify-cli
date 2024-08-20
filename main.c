@@ -684,9 +684,12 @@ main(int argc, char *const *argv)
             goto out;
         }
 
-        size_t expected_size = image_width * image_height * 4; // 4 bytes per pixel (RGBA)
+        /* 4 bytes per pixel (RGBA) */
+        size_t expected_size = image_width * image_height * 4;
         if (st.st_size != expected_size) {
-            fprintf(stderr, "error: %s: file size (%ld) does not match image dimensions (%dx%d)\n",
+            fprintf(
+                stderr,
+                "error: %s: file size (%ld) does not match image dimensions (%dx%d)\n",
                 image_data_file, (long)st.st_size, image_width, image_height);
             close(fd);
             goto out;
