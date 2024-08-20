@@ -9,6 +9,10 @@
 
 ## Unreleased
 ### Added
+
+* FreeBSD support
+
+
 ### Changed
 ### Deprecated
 ### Removed
