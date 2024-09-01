@@ -17,6 +17,12 @@
 ### Deprecated
 ### Removed
 ### Fixed
+
+* Leading space added to the "body" string ([#5][5]).
+
+[5]: https://codeberg.org/dnkl/fyi/issues/5
+
+
 ### Security
 ### Contributors
 

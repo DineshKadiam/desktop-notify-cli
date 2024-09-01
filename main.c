@@ -622,12 +622,13 @@ main(int argc, char *const *argv)
     for (size_t i = 1, len = 0; i < argc; i++) {
         const char *word = argv[i];
         size_t word_length = strlen(word);
+        bool add_space = i > 1;
 
-        body = realloc(body, len + 1 + word_length + 1);
+        body = realloc(body, len + add_space + word_length + 1);
         body[len] = ' ';
-        memcpy(&body[len + 1], word, word_length);
+        memcpy(&body[len + add_space], word, word_length);
 
-        len += 1 + word_length;
+        len += add_space + word_length;
         body[len] = '\0';
     }
 
