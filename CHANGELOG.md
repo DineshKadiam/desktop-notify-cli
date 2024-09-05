@@ -1,21 +1,19 @@
 # Changelog
 
-* [Unreleased](#unreleased)
+* [1.0.4](#1-0-4)
 * [1.0.3](#1-0-3)
 * [1.0.2](#1-0-2)
 * [1.0.1](#1-0-1)
 * [1.0.0](#1-0-0)
 
 
-## Unreleased
+## 1.0.4
+
 ### Added
 
 * FreeBSD support
 
 
-### Changed
-### Deprecated
-### Removed
 ### Fixed
 
 * Leading space added to the "body" string ([#5][5]).
@@ -23,8 +21,10 @@
 [5]: https://codeberg.org/dnkl/fyi/issues/5
 
 
-### Security
 ### Contributors
+
+* antenore
+* Baptiste Daroussin
 
 
 ## 1.0.3
