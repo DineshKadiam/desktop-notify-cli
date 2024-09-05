@@ -144,7 +144,7 @@ the format:
 	notification is dismissed, regardless of how.
 	
 	The token can be used to focus (activate, raise) a window. It is
-	not directly useable by *fyi*, but programs using *fyi* is a
+	not directly useable by *fyi*, but programs using *fyi* as a
 	helper to display notifications can use it.
 	
 	Using this option implies *--wait*.
