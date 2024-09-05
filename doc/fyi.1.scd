@@ -71,8 +71,8 @@ the format:
 	Defines an action to display (e.g. as a button, or in a list,
 	depending on notification daemon). _LABEL_ is what the
 	notification daemon will display for the user. When the user
-	triggers an action, *fyi* will display the corresponding _NAME_,
-	in the format:
+	triggers an action, *fyi* will print the corresponding _NAME_, in
+	the format:
 	
 		*action=*_NAME_
 	
