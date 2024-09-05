@@ -60,10 +60,12 @@ the format:
 	or a filename. Default: _none_
 
 *-u*,*--urgency*=*low|normal|critical*
-	Notification urgency. Default: _normal_.
+	Notification urgency. Shortcut for
+	*--hint=byte:urgency:0|1|2*. Default: _normal_.
 
 *-c*,*--category*=_CATEGORY_
-	Notification category. Default: _none_.
+	Notification category. Shortcut for
+	*--hint=string:category:CATEGORY*. Default: _none_.
 
 *-A*,*--action*=_NAME_:_LABEL_
 	Defines an action to display (e.g. as a button, or in a list,
@@ -108,7 +110,8 @@ the format:
 	milliseconds.
 
 *--transient*
-	By-pass the server's persistence capability, if any.
+	By-pass the server's persistence capability, if any. Shortcut for
+	*--hint=boolean:transient=true*.
 
 *-C*,*--close*=_ID_
 	If there is an existing notification with the specified ID, close
