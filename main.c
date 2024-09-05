@@ -116,7 +116,7 @@ send_close_notification(DBusConnection *conn, uint32_t notification_id)
     /* Mimic notify-send: close the notification */
     DBusMessageIter args;
     dbus_message_iter_init_append(msg, &args);
-    dbus_message_iter_append_basic(&args, 'u', &notification_id);
+    dbus_message_iter_append_basic(&args, DBUS_TYPE_UINT32, &notification_id);
     dbus_connection_send(conn, msg, 0);
     dbus_connection_flush(conn);
     dbus_message_unref(msg);
@@ -325,6 +325,124 @@ out:
     return ret;
 }
 
+static void
+add_urgency_hint(DBusMessageIter *hints, enum urgency urgency)
+{
+    static const char *name = "urgency";
+
+    DBusMessageIter hint;
+    DBusMessageIter value;
+    dbus_message_iter_open_container(hints, DBUS_TYPE_DICT_ENTRY, 0, &hint);
+
+    dbus_message_iter_append_basic(&hint, DBUS_TYPE_STRING, &name);
+    dbus_message_iter_open_container(&hint, DBUS_TYPE_VARIANT, DBUS_TYPE_BYTE_AS_STRING, &value);
+    dbus_message_iter_append_basic(&value, DBUS_TYPE_BYTE, &(uint8_t){urgency});
+    dbus_message_iter_close_container(&hint, &value);
+    dbus_message_iter_close_container(hints, &hint);
+}
+
+static void
+add_category_hint(DBusMessageIter *hints, const char *category)
+{
+    static const char *name = "category";
+
+    if (category == NULL || category[0] == '\0')
+        return;
+
+    DBusMessageIter hint;
+    DBusMessageIter value;
+    dbus_message_iter_open_container(hints, DBUS_TYPE_DICT_ENTRY, 0, &hint);
+    dbus_message_iter_append_basic(&hint, DBUS_TYPE_STRING, &name);
+    dbus_message_iter_open_container(&hint, DBUS_TYPE_VARIANT, DBUS_TYPE_STRING_AS_STRING, &value);
+    dbus_message_iter_append_basic(&value, DBUS_TYPE_STRING, &category);
+    dbus_message_iter_close_container(&hint, &value);
+    dbus_message_iter_close_container(hints, &hint);
+}
+
+static void
+add_transient_hint(DBusMessageIter *hints, bool transient)
+{
+    static const char *name = "transient";
+
+    if (!transient)
+        return;
+
+    DBusMessageIter hint;
+    DBusMessageIter value;
+
+    dbus_message_iter_open_container(hints, DBUS_TYPE_DICT_ENTRY, 0, &hint);
+    dbus_message_iter_append_basic(&hint, DBUS_TYPE_STRING, &name);
+    dbus_message_iter_open_container(&hint, DBUS_TYPE_VARIANT, DBUS_TYPE_BOOLEAN_AS_STRING, &value);
+    dbus_message_iter_append_basic(&value, DBUS_TYPE_BOOLEAN, &(dbus_bool_t){transient});
+    dbus_message_iter_close_container(&hint, &value);
+    dbus_message_iter_close_container(hints, &hint);
+}
+
+static void
+add_image_data_hint(DBusMessageIter *hints, const uint8_t *image,
+                    int32_t width, int32_t height)
+{
+    static const char *name = "image-data";
+
+    if (width == 0 || height == 0)
+        return;
+
+    DBusMessageIter hint;
+    DBusMessageIter value;
+
+    dbus_message_iter_open_container(hints, DBUS_TYPE_DICT_ENTRY, 0, &hint);
+    dbus_message_iter_append_basic(&hint, DBUS_TYPE_STRING, &name);
+
+    dbus_message_iter_open_container(
+        &hint, DBUS_TYPE_VARIANT,
+        DBUS_STRUCT_BEGIN_CHAR_AS_STRING
+          DBUS_TYPE_INT32_AS_STRING
+          DBUS_TYPE_INT32_AS_STRING
+          DBUS_TYPE_INT32_AS_STRING
+          DBUS_TYPE_BOOLEAN_AS_STRING
+          DBUS_TYPE_INT32_AS_STRING
+          DBUS_TYPE_INT32_AS_STRING
+          DBUS_TYPE_ARRAY_AS_STRING
+            DBUS_TYPE_BYTE_AS_STRING
+        DBUS_STRUCT_END_CHAR_AS_STRING,
+        &value);
+
+    /* We only support RGBA image data */
+    const int32_t stride = width * 4;
+
+    DBusMessageIter data;
+    dbus_message_iter_open_container(&value, DBUS_TYPE_STRUCT, NULL, &data);
+    dbus_message_iter_append_basic(&data, DBUS_TYPE_INT32, &width);
+    dbus_message_iter_append_basic(&data, DBUS_TYPE_INT32, &height);
+    dbus_message_iter_append_basic(&data, DBUS_TYPE_INT32, &stride);
+    dbus_message_iter_append_basic(&data, DBUS_TYPE_BOOLEAN, &(dbus_bool_t){true});
+    dbus_message_iter_append_basic(&data, DBUS_TYPE_INT32, &(int32_t){8});
+    dbus_message_iter_append_basic(&data, DBUS_TYPE_INT32, &(int32_t){4});
+
+    DBusMessageIter pixels;
+    dbus_message_iter_open_container(&data, DBUS_TYPE_ARRAY,DBUS_TYPE_BYTE_AS_STRING, &pixels);
+    for (size_t i = 0; i < height * stride; i++)
+        dbus_message_iter_append_basic(&pixels, DBUS_TYPE_BYTE, &image[i]);
+    dbus_message_iter_close_container(&data, &pixels);
+    dbus_message_iter_close_container(&value, &data);
+    dbus_message_iter_close_container(&hint, &value);
+    dbus_message_iter_close_container(hints, &hint);
+}
+
+static void
+add_user_hint(DBusMessageIter *hints, const struct hint *h)
+{
+    DBusMessageIter hint;
+    DBusMessageIter value;
+
+    dbus_message_iter_open_container(hints, DBUS_TYPE_DICT_ENTRY, 0, &hint);
+    dbus_message_iter_append_basic(&hint, DBUS_TYPE_STRING, &h->name);
+    dbus_message_iter_open_container(&hint, DBUS_TYPE_VARIANT, h->type_as_string, &value);
+    dbus_message_iter_append_basic(&value, h->type, &h->u);
+    dbus_message_iter_close_container(&hint, &value);
+    dbus_message_iter_close_container(hints, &hint);
+}
+
 int
 main(int argc, char *const *argv)
 {
@@ -391,16 +509,9 @@ main(int argc, char *const *argv)
 
     char *body = NULL;
     char *icon_uri = NULL;
-    char *image_data = NULL;
-    size_t image_data_sz = 0;
+    uint8_t *image_data = NULL;
     int32_t image_width = 0;
     int32_t image_height = 0;
-    int32_t image_stride = 0;
-
-    /* We only support RGBA image data */
-    const dbus_bool_t image_has_alpha = true;
-    const int32_t image_bpp = 8;
-    const int32_t image_channels = 4;
 
     DBusError err = DBUS_ERROR_INIT;
     DBusMessage *msg = NULL;
@@ -579,7 +690,6 @@ main(int argc, char *const *argv)
                 if (errno == 0 && end != NULL && *end == '\0') {
                     image_width = w;
                     image_height = h;
-                    image_stride = image_width * 4;
                 } else {
                     fprintf(stderr, "error: %s: invalid image size\n", optarg);
                     goto out;
@@ -616,8 +726,6 @@ main(int argc, char *const *argv)
     }
 
     const char *title = argv[0];
-    uint32_t transient_value = transient; /* D-Bus "boolean" */
-    uint8_t urgency_value = urgency;      /* D-Bus "byte" */
 
     for (size_t i = 1, len = 0; i < argc; i++) {
         const char *word = argv[i];
@@ -708,7 +816,6 @@ main(int argc, char *const *argv)
             goto out;
         }
 
-        image_data_sz = st.st_size;
         close(fd);
     }
 
@@ -719,123 +826,46 @@ main(int argc, char *const *argv)
     const char *icon_arg = icon != NULL ? icon : "";
     DBusMessageIter args;
     dbus_message_iter_init_append(msg, &args);
-    dbus_message_iter_append_basic(&args, 's', &app_id);
-    dbus_message_iter_append_basic(&args, 'u', &replaces_id);
-    dbus_message_iter_append_basic(&args, 's', &icon_arg);
-    dbus_message_iter_append_basic(&args, 's', &title);
-    dbus_message_iter_append_basic(&args, 's', &body);
+    dbus_message_iter_append_basic(&args, DBUS_TYPE_STRING, &app_id);
+    dbus_message_iter_append_basic(&args, DBUS_TYPE_UINT32, &replaces_id);
+    dbus_message_iter_append_basic(&args, DBUS_TYPE_STRING, &icon_arg);
+    dbus_message_iter_append_basic(&args, DBUS_TYPE_STRING, &title);
+    dbus_message_iter_append_basic(&args, DBUS_TYPE_STRING, &body);
 
     /* Actions: array of strings. Every even item is the action name,
        every odd item is the action label */
     DBusMessageIter args_actions;
-    dbus_message_iter_open_container(&args, 'a', "s", &args_actions);
+    dbus_message_iter_open_container(
+        &args, DBUS_TYPE_ARRAY, DBUS_TYPE_STRING_AS_STRING, &args_actions);
     for (size_t i = 0; i < action_count; i++) {
         const struct action *a = &actions[i];
-        dbus_message_iter_append_basic(&args_actions, 's', &a->name);
-        dbus_message_iter_append_basic(&args_actions, 's', &a->label);
+        dbus_message_iter_append_basic(&args_actions, DBUS_TYPE_STRING, &a->name);
+        dbus_message_iter_append_basic(&args_actions, DBUS_TYPE_STRING, &a->label);
     }
     dbus_message_iter_close_container(&args, &args_actions);
 
-    /* Hints: dictionary of "sv" (string + variant) */
     DBusMessageIter args_hints;
-    dbus_message_iter_open_container(&args, 'a', "{sv}", &args_hints);
+    dbus_message_iter_open_container(
+        &args, DBUS_TYPE_ARRAY,
+        DBUS_DICT_ENTRY_BEGIN_CHAR_AS_STRING
+          DBUS_TYPE_STRING_AS_STRING
+          DBUS_TYPE_VARIANT_AS_STRING
+        DBUS_DICT_ENTRY_END_CHAR_AS_STRING,
+        &args_hints);
     {
-        DBusMessageIter args_hints_hint;
-        DBusMessageIter args_hints_value;
-
-        dbus_message_iter_open_container(&args_hints, 'e', 0, &args_hints_hint);
-        {
-            static const char *hint_name = "urgency";
-            dbus_message_iter_append_basic(&args_hints_hint, 's', &hint_name);
-            dbus_message_iter_open_container(&args_hints_hint, 'v', "y", &args_hints_value);
-            {
-                dbus_message_iter_append_basic(&args_hints_value, 'y', &urgency_value);
-            }
-            dbus_message_iter_close_container(&args_hints_hint, &args_hints_value);
-        }
-        dbus_message_iter_close_container(&args_hints, &args_hints_hint);
-
-        if (category != NULL && category[0] != '\0') {
-            dbus_message_iter_open_container(&args_hints, 'e', 0, &args_hints_hint);
-            {
-                static const char *hint_name = "category";
-                dbus_message_iter_append_basic(&args_hints_hint, 's', &hint_name);
-                dbus_message_iter_open_container(&args_hints_hint, 'v', "s", &args_hints_value);
-                {
-                    dbus_message_iter_append_basic(&args_hints_value, 's', &category);
-                }
-                dbus_message_iter_close_container(&args_hints_hint, &args_hints_value);
-            }
-            dbus_message_iter_close_container(&args_hints, &args_hints_hint);
-        }
-
-        if (transient) {
-            dbus_message_iter_open_container(&args_hints, 'e', 0, &args_hints_hint);
-            {
-                static const char *hint_name = "transient";
-                dbus_message_iter_append_basic(&args_hints_hint, 's', &hint_name);
-                dbus_message_iter_open_container(&args_hints_hint, 'v', "b", &args_hints_value);
-                {
-                    dbus_message_iter_append_basic(&args_hints_value, 'b', &transient_value);
-                }
-                dbus_message_iter_close_container(&args_hints_hint, &args_hints_value);
-            }
-            dbus_message_iter_close_container(&args_hints, &args_hints_hint);
-        }
-
-        if (image_data_sz > 0) {
-            dbus_message_iter_open_container(&args_hints, 'e', 0, &args_hints_hint);
-            {
-                static const char *hint_name = "image-data";
-                dbus_message_iter_append_basic(&args_hints_hint, 's', &hint_name);
-                dbus_message_iter_open_container(&args_hints_hint, 'v', "(iiibiiay)", &args_hints_value);
-                {
-                    DBusMessageIter args_image_data;
-                    dbus_message_iter_open_container(&args_hints_value, 'r', NULL, &args_image_data);
-                    {
-                        dbus_message_iter_append_basic(&args_image_data, 'i', &image_width);
-                        dbus_message_iter_append_basic(&args_image_data, 'i', &image_height);
-                        dbus_message_iter_append_basic(&args_image_data, 'i', &image_stride);
-                        dbus_message_iter_append_basic(&args_image_data, 'b', &image_has_alpha);
-                        dbus_message_iter_append_basic(&args_image_data, 'i', &image_bpp);
-                        dbus_message_iter_append_basic(&args_image_data, 'i', &image_channels);
-
-                        DBusMessageIter args_pixel_array;
-                        dbus_message_iter_open_container(&args_image_data, 'a', "y", &args_pixel_array);
-                        {
-                            for (size_t i = 0; i < image_data_sz; i++) {
-                                dbus_message_iter_append_basic(&args_pixel_array, 'y', &image_data[i]);
-                            }
-                        }
-                        dbus_message_iter_close_container(&args_image_data, &args_pixel_array);
-                    }
-                    dbus_message_iter_close_container(&args_hints_value, &args_image_data);
-                }
-                dbus_message_iter_close_container(&args_hints_hint, &args_hints_value);
-            }
-            dbus_message_iter_close_container(&args_hints, &args_hints_hint);
-
-        }
+        add_urgency_hint(&args_hints, urgency);
+        add_category_hint(&args_hints, category);
+        add_transient_hint(&args_hints, transient);
+        add_image_data_hint(&args_hints, image_data, image_width, image_height);
 
         /* User specified hints */
-        for (size_t i = 0; i < hint_count; i++) {
-            const struct hint *h = &hints[i];
-            dbus_message_iter_open_container(&args_hints, 'e', 0, &args_hints_hint);
-            {
-                dbus_message_iter_append_basic(&args_hints_hint, 's', &h->name);
-                dbus_message_iter_open_container(&args_hints_hint, 'v', h->type_as_string, &args_hints_value);
-                {
-                    dbus_message_iter_append_basic(&args_hints_value, h->type, &h->u);
-                }
-                dbus_message_iter_close_container(&args_hints_hint, &args_hints_value);
-            }
-            dbus_message_iter_close_container(&args_hints, &args_hints_hint);
-        }
+        for (size_t i = 0; i < hint_count; i++)
+            add_user_hint(&args_hints, &hints[i]);
     }
     dbus_message_iter_close_container(&args, &args_hints);
 
     /* Expire timeout */
-    dbus_message_iter_append_basic(&args, 'i', &expire_time);
+    dbus_message_iter_append_basic(&args, DBUS_TYPE_INT32, &expire_time);
 
     /* Sign up for signals *before* we send the notification, to avoid race */
     if (wait) {
