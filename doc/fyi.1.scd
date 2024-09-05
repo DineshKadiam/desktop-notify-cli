@@ -167,7 +167,7 @@ the format:
 	must also provide the image size, see *--image-size*.
 
 *--image-size=WIDTHxHEIGHT*
-	The dimensions of the image loaded by --image-data.
+	The dimensions of the image loaded by *--image-data*.
 
 *--server-info*
 	Display notification daemon name and version.
