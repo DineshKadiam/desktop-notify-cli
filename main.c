@@ -167,8 +167,10 @@ send_server_information(DBusConnection *conn)
     ret = true;
 
 out:
-    dbus_message_unref(msg);
-    dbus_message_unref(reply);
+    if (reply != NULL)
+        dbus_message_unref(reply);
+    if (msg != NULL)
+        dbus_message_unref(msg);
     dbus_error_free(&err);
     return ret;
 }
@@ -223,8 +225,10 @@ send_server_capabilities(DBusConnection *conn)
     ret = true;
 
 out:
-    dbus_message_unref(reply);
-    dbus_message_unref(msg);
+    if (reply != NULL)
+        dbus_message_unref(reply);
+    if (msg != NULL)
+        dbus_message_unref(msg);
     dbus_error_free(&err);
 
     return ret;

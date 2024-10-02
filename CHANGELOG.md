@@ -14,6 +14,11 @@
 ### Deprecated
 ### Removed
 ### Fixed
+
+* D-Bus assertions with `--server-info` and `--server-capabilities`
+  when no reply is received from the daemon.
+
+
 ### Security
 ### Contributors
 
