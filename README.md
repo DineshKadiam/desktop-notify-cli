@@ -110,3 +110,5 @@ fyi --image-data /path/to/raw.rgba --image-size WxH title message
 
 * Liberapay: https://liberapay.com/dnkl
 * GitHub Sponsors: https://github.com/sponsors/dnkl
+
+[![Donate using Liberapay](https://liberapay.com/assets/widgets/donate.svg)](https://liberapay.com/dnkl/donate)
