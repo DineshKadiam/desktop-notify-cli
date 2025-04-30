@@ -104,3 +104,9 @@ convert /path/to/image.png /path/to/raw.rgba
 # Notify!
 fyi --image-data /path/to/raw.rgba --image-size WxH title message
 ```
+
+
+# Sponsoring/donations
+
+* Liberapay: https://liberapay.com/dnkl
+* GitHub Sponsors: https://github.com/sponsors/dnkl
