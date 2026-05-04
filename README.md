@@ -1,6 +1,6 @@
 # FYI
 
-[![Packaging status](https://repology.org/badge/vertical-allrepos/fyi.svg?columns=4)](https://repology.org/project/fyi/versions)
+[![Packaging status](https://repology.org/badge/vertical-allrepos/fyi-notify-send.svg?columns=4)](https://repology.org/project/fyi-notify-send/versions)
 
 FYI (for your information) is a command line utility to send desktop
 notifications to the user via a notification daemon implementing XDG
