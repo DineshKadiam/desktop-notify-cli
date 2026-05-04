@@ -17,6 +17,9 @@
 
 * D-Bus assertions with `--server-info` and `--server-capabilities`
   when no reply is received from the daemon.
+* Compilation errors with glibc >= 2.43 ([#43][43]).
+
+[43]: https://codeberg.org/dnkl/fyi/issues/43
 
 
 ### Security

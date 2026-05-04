@@ -555,8 +555,8 @@ main(int argc, char *const *argv)
         }
 
         case 'H': {
-            const char *type_str = optarg;
-            const char *name = NULL;
+            char *type_str = optarg;
+            char *name = NULL;
             const char *value = NULL;
 
             char *split = strchr(type_str, ':');
