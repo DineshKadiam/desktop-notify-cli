@@ -106,6 +106,15 @@ fyi --image-data /path/to/raw.rgba --image-size WxH title message
 ```
 
 
+# No AI / LLM policy
+
+Use of generative AI/LLMs is strictly forbidden for **all**
+contributions to fyi.
+
+This includes bug reports and comments on the issue and pull request
+trackers.
+
+
 # Sponsoring/donations
 
 * Liberapay: https://liberapay.com/dnkl
