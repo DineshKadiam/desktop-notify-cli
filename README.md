@@ -1,3 +1,5 @@
+> Originally developed at [codeberg.org/dnkl/fyi](https://codeberg.org/dnkl/fyi) · MIT
+
 # FYI
 
 [![Packaging status](https://repology.org/badge/vertical-allrepos/fyi-notify-send.svg?columns=4)](https://repology.org/project/fyi-notify-send/versions)
